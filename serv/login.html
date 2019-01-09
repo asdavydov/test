@@ -1,0 +1,16 @@
+<div ng-controller="loginController as vm">
+        <div>Login page</div>
+        
+        <form ng-submit="vm.onSubmit(vm.LoginForm)">
+            <div>
+                Email: <input type="text" ng-model="vm.LoginForm.Email" />
+            </div>
+            <div>
+                Password: <input type="password" ng-model="vm.LoginForm.Password" />
+            </div>
+            <div ng-if="vm.LoginForm.Error != ''">
+                <span ng-bind="vm.LoginForm.Error"></span>
+            </div>
+            <input type="submit" value="Login" />
+        </form>
+    </div>

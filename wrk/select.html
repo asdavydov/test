@@ -1,0 +1,191 @@
+<!doctype html>
+<html>
+    <head>
+        <style>
+            .selected {
+                background-color: red;
+            }
+            .dw-dropdown {
+                list-style-type: none;
+                border-color: #ececec;
+                border-width: 1px;
+                border-style: solid;
+                padding: 2px;
+                cursor: pointer;
+                z-index: 9999;
+                position: absolute;
+                background-color: #ffffff;
+                margin-top:0px;
+            }
+        </style>
+    </head>
+    <body ng-app="app">
+        <div ng-controller="dealController">
+            <dw-currency></dw-currency>
+            <hr />
+            <span>Text text text text text text text text text text text text text</span>
+        </div>
+        <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.7.2/angular.min.js"></script>
+        <script>
+
+            var app = angular.module('app', []).controller("dealController", ['$scope', function($scope) {
+
+                $scope.Deal = {
+
+                    CurrencyId: 5
+                };
+            }]).factory('currencyService', ['$http', function ($http) {
+
+                return {
+
+                    getAll: function() {
+
+                        return $http.get('currencies.json');
+                    }
+                };
+            }]).directive('dwCurrency', ['$document', 'currencyService', function($document, currencyService) {
+                return {
+                    restrict: 'E',
+                    replace: true,
+                    scope: true,
+                    template: '<div>'
+                            + '    <input type="text" ng-model="Name" required ng-change="onChange()">'
+                            + '    <ul ng-show="IsVisible" class="dw-dropdown">'
+                            + '        <li ng-repeat="item in Items | limitTo:10" ng-click="onSelect(item)" ng-class="{\'selected\':Index==$index}">{{item.name}}</li>'
+                            + '    </ul>'
+                            + '</div>',
+                    link: function (scope, element, attrs) {
+
+                        var _allItems = [];
+
+                        scope.Index = 0;
+                        scope.Name = '';
+                        scope.Items = [];
+                        scope.IsVisible = false;
+
+                        function updateVisiblity() {
+
+                            var isVisible = scope.Items.length > 0;
+
+                            if (scope.IsVisible != isVisible) {
+
+                                scope.IsVisible = isVisible;
+
+                                if (isVisible) {
+
+                                    $document.bind('click', clickHandler);
+                                }
+                                else {
+                                    
+                                    $document.unbind('click', clickHandler);
+                                }
+                            }
+                        }
+
+                        function clickHandler(event) {
+
+                            if (elementMatchesAnyInArray(event.target, element.find(event.target.tagName)))
+                                return;
+
+                            scope.Items = [];
+
+                            updateVisiblity();
+
+                            scope.$apply();
+                        }
+
+                        var elementMatchesAnyInArray = function (element, elementArray) {
+                            
+                            for (var i = 0; i < elementArray.length; i++)
+                                if (element == elementArray[i])
+                                    return true;
+                            return false;
+                        };
+
+                        currencyService.getAll().then(function(result) {
+
+                            var data = result.data;
+
+                            for (var i = 0; i < data.length; i++) {
+
+                                var item = data[i];
+                                item.id = i + 1;
+
+                                _allItems.push(item);
+
+                                if (item.id == scope.Deal.BorrowerId) {
+
+                                    scope.Name = item.name;
+                                }
+                            }
+                        });
+
+                        scope.onChange = function () {
+
+                            scope.Index = 0;
+
+                            var name = (scope.Name || '').toLowerCase().trim();
+
+                            scope.Items = (name !== '') ? _allItems.filter(function(t) { return t.name.toLowerCase().indexOf(name) !== -1 }) : [];
+
+                            updateVisiblity();
+                        };
+
+                        scope.onSelect = function(item) {
+
+                            scope.Deal.BorrowerId = item.id;
+
+                            scope.Name = item.name;
+
+                            scope.Items = [];
+
+                            updateVisiblity();
+                        };
+
+                        element.bind("keydown", function(event) {
+
+                            switch (event.keyCode) {
+
+                                case 38: // Up
+                                    event.preventDefault();
+
+                                    var min = 0;
+
+                                    if (scope.Index > min) {
+                                        scope.Index--;
+                                        
+                                        scope.$apply();
+                                    }
+
+                                    break;
+                                case 40: // Down
+                                    event.preventDefault();
+                                    
+                                    var max = scope.Items.length < 10 ? scope.Items.length - 1 : 9;
+
+                                    if (scope.Index < max) {
+                                        scope.Index++;
+                                        
+                                        scope.$apply();
+                                    }
+
+                                    break;
+                                case 13: // Enter
+
+                                    if (scope.IsVisible) {
+
+                                        scope.onSelect(scope.Items[scope.Index]);
+
+                                        scope.$apply();
+                                    }
+
+                                    break;
+                            }
+                        });
+                    }
+                }
+            }]);
+            
+        </script>
+    </body>
+</html>

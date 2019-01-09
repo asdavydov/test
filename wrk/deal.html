@@ -1,0 +1,748 @@
+<!doctype html>
+<html>
+    <head>
+        <style>
+            .selected {
+                background-color: red;
+            }
+            .dw-dropdown {
+                list-style-type: none;
+                border-color: #ececec;
+                border-width: 1px;
+                border-style: solid;
+                padding: 2px;
+                cursor: pointer;
+                z-index: 9999;
+                position: absolute;
+                background-color: #ffffff;
+                margin-top:0px;
+            }
+        </style>
+    </head>
+    <body ng-app="app">
+        <div ng-controller="dealController">
+            <dw-borrower></dw-borrower>
+            <hr />
+            <span>Text text text text text text text text text text text text text</span>
+            <dw-currency></dw-currency>
+            <hr />
+            <span>Text text text text text text text text text text text text text</span>
+            <pre>{{Deal}}</pre>
+            <dw-multi-currency></dw-multi-currency>
+            <hr />
+            <span>Text text text text text text text text text text text text text</span>
+            <pre>{{Deal}}</pre>
+        </div>
+        <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.7.2/angular.min.js"></script>
+        <script>
+
+            var app = angular.module('app', []).controller("dealController", ['$scope', function($scope) {
+
+                $scope.Deal = {
+
+                    BorrowerId: 25,
+                    CurrencyId: 5,
+                    Currencies: [1, 2]
+                };
+            }]).directive('dwAutoComplete', ['$document', function($document) {
+                return {
+                    restrict: 'E',
+                    replace: true,
+                    scope: {
+                        dwDataSource: '&',
+                        dwResult: '&'
+                    },
+                    template: '<div>'
+                            + '    <input type="text" ng-model="Search" ng-change="onChange()" ng-blur="onBlur()">'
+                            + '    <ul ng-show="$isVisible" class="dw-dropdown">'
+                            + '        <li ng-repeat="item in Items | limitTo:10" ng-click="onSelect(item)" ng-class="{ \'selected\': $selectedIndex == $index }">'
+                            + '            <span ng-bind="item.Data.Name"></span>'
+                            + '        </li>'
+                            + '    </ul>'
+                            + '</div>',
+                    controller: ['$scope', '$element', function ($scope, $element) {
+
+                        var _items = [];
+                        var _changed = false;
+
+                        $scope.$selectedIndex = -1;
+                        $scope.$isVisible = false;
+
+                        function _onOpen() {
+
+                            var isVisible = $scope.Items.length > 0;
+
+                            if (isVisible) {
+
+                                $scope.$selectedIndex = 0;
+
+                                if (!$scope.$isVisible) {
+
+                                    $scope.$isVisible = true;
+
+                                    $document.bind('click', _documentClickHandler);
+                                }
+                            } else {
+
+                                _onClose()
+                            }
+                        }
+
+                        function _onClose() {
+
+                            $scope.$selectedIndex = -1;
+
+                            $scope.Items = [];
+
+                            $scope.$isVisible = false;
+
+                            $document.unbind('click', _documentClickHandler);
+                        }
+
+                        function _onSelect(selected, init) {
+
+                            _changed = false;
+
+                            if (selected != null) {
+
+                                $scope.Search = selected.Data.Name;
+
+                                _items.forEach(function(item, index) {
+
+                                    item.Selected = item.Data.Id == selected.Data.Id;
+                                });
+
+                                if (init == false) {
+
+                                    $scope.dwResult({ 'result': selected.Data });
+                                }
+                            } else {
+
+                                $scope.Search = '';
+
+                                _items.forEach(function(item) {
+
+                                    item.Selected = false;
+                                });
+
+                                if (init == false) {
+
+                                    $scope.dwResult({ 'result': null });
+                                }
+                            }
+
+                            _onClose();
+                        }
+
+                        function _documentClickHandler(event) {
+
+                            if (_documentElementMatches(event.target, $element.find(event.target.tagName))) {
+                                
+                                return;
+                            }
+
+                            _onSelect($scope.Items[$scope.$selectedIndex], false);
+
+                            $scope.$apply();
+                        }
+
+                        var _documentElementMatches = function (element, elementArray) {
+                            
+                            for (var i = 0; i < elementArray.length; i++) {
+
+                                if (element == elementArray[i]) {
+
+                                    return true;
+                                }
+                            }
+                                
+                            return false;
+                        };
+
+                        $scope.onChange = function () {
+
+                            _changed = true;
+
+                            var search = ($scope.Search || '').toLowerCase().trim();
+
+                            $scope.Items = (search !== '') ? _items.filter(function(t) { return t.Data.Name.toLowerCase().indexOf(search) !== -1 }) : [];
+
+                            _onOpen();
+                        };
+
+                        $scope.onBlur = function () {
+
+                            if (_changed && $scope.$selectedIndex == -1) {
+
+                                _onSelect(null, false);
+                            }
+                        };
+
+                        $scope.onSelect = function(selected) {
+
+                            _onSelect(selected, false);
+                        };
+
+                        $scope.dwDataSource().then(function(result) {
+
+                            _items = result;
+
+                            _onSelect((result.filter(function(t) { return t.Selected }) || [])[0], true);
+                        });
+
+                        $element.bind("keydown", function(event) {
+
+                            if ($scope.$isVisible) {
+                                switch (event.keyCode) {
+
+                                    case 38: // Up
+                                        
+                                        event.preventDefault();
+
+                                        if ($scope.$selectedIndex > 0) {
+
+                                            $scope.$selectedIndex--;
+                                            
+                                            $scope.$apply();
+                                        }
+
+                                        break;
+                                    case 40: // Down
+                                        event.preventDefault();
+
+                                        var length = $scope.Items.length;
+                                        
+                                        if ($scope.$selectedIndex < (length < 10 ? length - 1 : 9)) {
+
+                                            $scope.$selectedIndex++;
+                                            
+                                            $scope.$apply();
+                                        }
+
+                                        break;
+                                    case 9: // Tab
+                                    case 13: // Enter
+                                        event.preventDefault();
+
+                                        _onSelect($scope.Items[$scope.$selectedIndex], false);
+
+                                        $scope.$apply();
+
+                                        break;
+                                    case 27: // Esc
+                                        event.preventDefault();
+
+                                        _onSelect((_items.filter(function(t) { return t.Selected }) || [])[0], false);
+
+                                        $scope.$apply();
+
+                                        break;
+                                }
+                            }
+                        });
+                    }]
+                }
+            }]).directive('dwBorrower', [function() {
+                return {
+                    restrict: 'E',
+                    replace: true,
+                    scope: true,
+                    template: '<div>'
+                            + '    <dw-auto-complete dw-data-source="dataSource()" dw-result="onResult(result)"></dw-auto-complete>'
+                            + '</div>',
+                    controller: ['$scope', '$http', '$q', function ($scope, $http, $q) {
+
+                        $scope.dataSource = function () {
+
+                            var deferred = $q.defer();
+
+                            $http.get('borrowers.json').then(function(response) {
+
+                                var result = [];
+
+                                var id = 0;
+                                response.data.forEach(function(item) {
+
+                                    id++;
+                                    item.Id = id;
+
+                                    result.push({
+                                        Data: item,
+                                        Selected: item.Id == $scope.Deal.BorrowerId
+                                    });
+                                });
+
+                                deferred.resolve(result);
+                            });
+
+                            return deferred.promise;
+                        };
+
+                        $scope.onResult = function(result) {
+                          
+                            $scope.Deal.BorrowerId = (result) ? result.Id : null;
+                        };
+                    }]
+                }
+            }]).directive('dwSelect', ['$document', function($document) {
+                return {
+                    restrict: 'E',
+                    replace: true,
+                    scope: {
+                        dwDataSource: '&',
+                        dwResult: '&'
+                    },
+                    template: '<div>'
+                            + '    <span ng-bind="Value"></span>'
+                            + '    <button ng-click="onOpen()">Open</button>'
+                            + '    <ul ng-show="$isVisible" class="dw-dropdown">'
+                            + '        <li ng-repeat="item in Items" ng-click="onSelect(item)" ng-class="{ \'selected\': $selectedIndex == $index }">'
+                            + '            <span ng-bind="item.Data.Name"></span>'
+                            + '        </li>'
+                            + '    </ul>'
+                            + '</div>',
+                    controller: ['$scope', '$element', function ($scope, $element) {
+
+                        $scope.$selectedIndex = -1;
+                        $scope.$isVisible = false;
+
+                        function _onOpen() {
+
+                            var selected = ($scope.Items.filter(function(t) { return t.Selected }) || [])[0];
+
+                            $scope.$selectedIndex = (selected != null) ? $scope.Items.indexOf(selected) : -1;
+
+                            $scope.$isVisible = true;
+
+                            $document.bind('click', _documentClickHandler);
+                        }
+
+                        function _onClose() {
+
+                            $scope.$selectedIndex = -1;
+
+                            $scope.$isVisible = false;
+
+                            $document.unbind('click', _documentClickHandler);
+                        }
+
+                        function _onSelect(selected, init) {
+
+                            if (selected != null) {
+
+                                $scope.Value = selected.Data.Name;
+
+                                $scope.Items.forEach(function(item, index) {
+
+                                    item.Selected = item.Data.Id == selected.Data.Id;
+                                });
+
+                                if (init == false) {
+
+                                    $scope.dwResult({ 'result': selected.Data });
+                                }
+                            } else {
+
+                                $scope.Value = '';
+
+                                $scope.Items.forEach(function(item) {
+
+                                    item.Selected = false;
+                                });
+
+                                if (init == false) {
+
+                                    $scope.dwResult({ 'result': null });
+                                }
+                            }
+
+                            _onClose();
+                        }
+
+                        function _documentClickHandler(event) {
+
+                            if (_documentElementMatches(event.target, $element.find(event.target.tagName))) {
+                                
+                                return;
+                            }
+
+                            _onClose();
+
+                            $scope.$apply();
+                        }
+
+                        var _documentElementMatches = function (element, elementArray) {
+                            
+                            for (var i = 0; i < elementArray.length; i++) {
+
+                                if (element == elementArray[i]) {
+
+                                    return true;
+                                }
+                            }
+                                
+                            return false;
+                        };
+
+                        $scope.onOpen = function() {
+
+                            $scope.$isVisible = !$scope.$isVisible;
+
+                            if ($scope.$isVisible) {
+
+                                _onOpen();
+                            } else {
+
+                                _onClose();
+                            }
+                        };
+
+                        $scope.onSelect = function(selected) {
+
+                            _onSelect(selected, false);
+                        };
+
+                        $scope.dwDataSource().then(function(result) {
+
+                            $scope.Items = result;
+
+                            _onSelect((result.filter(function(t) { return t.Selected }) || [])[0], true);
+                        });
+
+                        $element.bind("keydown", function(event) {
+
+                            if ($scope.$isVisible) {
+
+                                switch (event.keyCode) {
+
+                                    case 38: // Up
+                                        
+                                        event.preventDefault();
+
+                                        if ($scope.$selectedIndex > 0) {
+
+                                            $scope.$selectedIndex--;
+                                            
+                                            $scope.$apply();
+                                        }
+
+                                        break;
+                                    case 40: // Down
+                                        event.preventDefault();
+                                       
+                                        if ($scope.$selectedIndex < $scope.Items.length - 1) {
+
+                                            $scope.$selectedIndex++;
+                                            
+                                            $scope.$apply();
+                                        }
+
+                                        break;
+                                    case 13: // Enter
+                                        event.preventDefault();
+
+                                        _onSelect($scope.Items[$scope.$selectedIndex], false);
+
+                                        $scope.$apply();
+
+                                        break;
+                                    case 9: // Tab
+                                    case 27: // Esc
+                                        event.preventDefault();
+
+                                        _onClose();
+
+                                        $scope.$apply();
+
+                                        break;
+                                }
+                            }
+                        });
+                    }]
+                }
+            }]).directive('dwCurrency', [function() {
+                return {
+                    restrict: 'E',
+                    replace: true,
+                    scope: true,
+                    template: '<div>'
+                            + '    <dw-select dw-data-source="dataSource()" dw-result="onResult(result)"></dw-select>'
+                            + '</div>',
+                    controller: ['$scope', '$http', '$q', function ($scope, $http, $q) {
+
+                        $scope.dataSource = function () {
+
+                            var deferred = $q.defer();
+
+                            $http.get('currencies.json').then(function(response) {
+
+                                var result = [];
+
+                                var id = 0;
+                                response.data.forEach(function(item) {
+
+                                    id++;
+                                    item.Id = id;
+
+                                    result.push({
+                                        Data: item,
+                                        Selected: item.Id == $scope.Deal.CurrencyId
+                                    });
+                                });
+
+                                deferred.resolve(result);
+                            });
+
+                            return deferred.promise;
+                        };
+
+                        $scope.onResult = function(result) {
+                          
+                            $scope.Deal.CurrencyId = (result) ? result.Id : null;
+                        };
+                    }]
+                }
+            }]).directive('dwMultiSelect', ['$document', function($document) {
+                return {
+                    restrict: 'E',
+                    replace: true,
+                    scope: {
+                        dwDataSource: '&',
+                        dwResult: '&'
+                    },
+                    template: '<div>'
+                            + '    <span ng-bind="Value"></span>'
+                            + '    <button ng-click="onOpen()">Open</button>'
+                            + '    <ul ng-show="$isVisible" class="dw-dropdown">'
+                            + '        <li ng-repeat="item in Items" ng-click="onSelect(item)" ng-class="{ \'selected\': $selectedIndex == $index }">'
+                            + '            <span ng-bind="item.Data.Name"></span> {{ item.Selected }}'
+                            + '        </li>'
+                            + '    </ul>'
+                            + '</div>',
+                    controller: ['$scope', '$element', function ($scope, $element) {
+
+                        $scope.$selectedIndex = -1;
+                        $scope.$isVisible = false;
+
+                        function _onOpen() {
+
+                            // ?? Correct???
+                            var selected = ($scope.Items.filter(function(t) { return t.Selected }) || [])[0];
+
+                            $scope.$selectedIndex = (selected != null) ? $scope.Items.indexOf(selected) : -1;
+
+                            $scope.$isVisible = true;
+
+                            $document.bind('click', _documentClickHandler);
+                        }
+
+                        function _onClose() {
+
+                            $scope.$selectedIndex = -1;
+
+                            $scope.$isVisible = false;
+
+                            $document.unbind('click', _documentClickHandler);
+                        }
+
+                        function _onSelect(selected, init) {
+
+                            if (selected != null) {
+
+                                selected.Selected = !selected.Selected;
+
+                                $scope.Value = '';
+
+                                $scope.Items.filter(function(t) { return t.Selected }).forEach(function(item, index) {
+
+                                    if (index > 0) {
+
+                                        $scope.Value += ', ';
+                                    } 
+                                    $scope.Value += item.Data.Name;
+                                });
+
+
+
+                                //$scope.Value = selected.Data.Name;
+
+                                // $scope.Items.forEach(function(item, index) {
+
+                                //     item.Selected = item.Data.Id == selected.Data.Id;
+                                // });
+
+                                // if (init == false) {
+
+                                //     $scope.dwResult({ 'result': selected.Data });
+                                // }
+                            } else {
+
+                                // $scope.Value = '';
+
+                                // $scope.Items.forEach(function(item) {
+
+                                //     item.Selected = false;
+                                // });
+
+                                // if (init == false) {
+
+                                //     $scope.dwResult({ 'result': null });
+                                // }
+                            }
+
+                            // _onClose();
+                        }
+
+                        function _documentClickHandler(event) {
+
+                            if (_documentElementMatches(event.target, $element.find(event.target.tagName))) {
+                                
+                                return;
+                            }
+
+                            _onClose();
+
+                            $scope.$apply();
+                        }
+
+                        var _documentElementMatches = function (element, elementArray) {
+                            
+                            for (var i = 0; i < elementArray.length; i++) {
+
+                                if (element == elementArray[i]) {
+
+                                    return true;
+                                }
+                            }
+                                
+                            return false;
+                        };
+
+                        $scope.onOpen = function() {
+
+                            $scope.$isVisible = !$scope.$isVisible;
+
+                            if ($scope.$isVisible) {
+
+                                _onOpen();
+                            } else {
+
+                                _onClose();
+                            }
+                        };
+
+                        $scope.onSelect = function(selected) {
+
+                            _onSelect(selected, false);
+                        };
+
+                        $scope.dwDataSource().then(function(result) {
+
+                            $scope.Items = result;
+
+                            _onSelect((result.filter(function(t) { return t.Selected }) || []), true);
+                        });
+
+                        $element.bind("keydown", function(event) {
+
+                            if ($scope.$isVisible) {
+
+                                switch (event.keyCode) {
+
+                                    case 38: // Up
+                                        
+                                        event.preventDefault();
+
+                                        if ($scope.$selectedIndex > 0) {
+
+                                            $scope.$selectedIndex--;
+                                            
+                                            $scope.$apply();
+                                        }
+
+                                        break;
+                                    case 40: // Down
+                                        event.preventDefault();
+                                       
+                                        if ($scope.$selectedIndex < $scope.Items.length - 1) {
+
+                                            $scope.$selectedIndex++;
+                                            
+                                            $scope.$apply();
+                                        }
+
+                                        break;
+
+                                    case 9: // Tab
+                                    case 13: // Enter
+                                    case 27: // Esc
+                                        event.preventDefault();
+
+                                        _onClose();
+
+                                        $scope.$apply();
+
+                                        break;
+
+                                    case 32: // Space
+                                        event.preventDefault();
+
+                                        _onSelect($scope.Items[$scope.$selectedIndex], false);
+
+                                        //_onClose();
+
+                                        $scope.$apply();
+
+                                        break;
+                                }
+                            }
+                        });
+                    }]
+                }
+            }]).directive('dwMultiCurrency', [function() {
+                return {
+                    restrict: 'E',
+                    replace: true,
+                    scope: true,
+                    template: '<div>'
+                            + '    <dw-multi-select dw-data-source="dataSource()" dw-result="onResult(result)"></dw-multi-select>'
+                            + '</div>',
+                    controller: ['$scope', '$http', '$q', function ($scope, $http, $q) {
+
+                        $scope.dataSource = function () {
+
+                            var deferred = $q.defer();
+
+                            $http.get('currencies.json').then(function(response) {
+
+                                var result = [];
+
+                                var id = 0;
+                                response.data.forEach(function(item) {
+
+                                    id++;
+                                    item.Id = id;
+
+                                    result.push({
+                                        Data: item,
+                                        Selected: item.Id == $scope.Deal.CurrencyId
+                                    });
+                                });
+
+                                deferred.resolve(result);
+                            });
+
+                            return deferred.promise;
+                        };
+
+                        $scope.onResult = function(result) {
+                          
+                            $scope.Deal.CurrencyId = (result) ? result.Id : null;
+                        };
+                    }]
+                }
+            }]);
+            
+        </script>
+    </body>
+</html>

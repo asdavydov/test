@@ -1,0 +1,425 @@
+<!doctype html>
+<html ng-app="igApp">
+    <head>
+        <meta name="viewport" content="width=device-width" />
+        <base href="/">
+        <title>Service</title>
+    </head>
+    <body>
+        <div ig-app></div>
+
+        <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.7.2/angular.min.js"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.7.2/angular-route.js"></script>
+        <script>
+            var igApp = angular.module('igApp', ['ngRoute']).config(['$httpProvider', '$routeProvider', '$locationProvider', function ($httpProvider, $routeProvider, $locationProvider) {
+    
+                // Prevent GET request caching
+                if(!$httpProvider.defaults.headers.get) {
+                    $httpProvider.defaults.headers.common = {};
+                }          
+
+                $httpProvider.defaults.headers.common["If-Modified-Since"] = 'Mon, 26 Jul 1997 05:00:00 GMT';
+                $httpProvider.defaults.headers.common["Cache-Control"] = 'no-cache';
+                $httpProvider.defaults.headers.common.Pragma = 'no-cache';   
+
+                $routeProvider.when('/', {
+                    templateUrl: '/home.html',
+                    access: 'All'
+                }).when('/registration', {
+                    templateUrl: '/registration.html',
+                    access: 'Anonymous'
+                }).when('/login', {
+                    templateUrl: '/login.html',
+                    access: 'Anonymous'
+                }).when('/request', {
+                    templateUrl: '/request.html',
+                    access: 'Authenticated'
+                }).otherwise({
+                    redirectTo: '/'
+                });
+
+                $locationProvider.hashPrefix('');
+
+            }]).factory('dataService', ['$http', '$q', function ($http, $q) {
+
+                return {
+                    //
+                    // Get request
+                    get: function (url, params) {
+
+                        params = params || '';
+
+                        var deferred = $q.defer();
+
+                        $http.get(url, { params: params }).then(function(response) {
+
+                            var data = response.data;
+
+                            switch (data.Status) {
+                                case 'Success':
+                                    deferred.resolve(data.Result);
+                                    
+                                    break;
+                                default:
+                                    deferred.reject(data.Result);
+
+                                    break;
+                            }
+                        }).catch(function (error) {
+
+                            deferred.reject({
+                                Code: error.status
+                            });
+                        });
+
+                        return deferred.promise;
+                    },
+                    //
+                    // Post request
+                    post: function (url, data) {
+
+                        var deferred = $q.defer();
+                        
+                        $http.post(url, data).then(function (response) {
+
+                            var data = response.data;
+
+                            switch (data.Status) {
+                                case 'Success':
+                                    deferred.resolve(data.Result);
+                                    
+                                    break;
+                                default:
+                                    deferred.reject(data.Result);
+
+                                    break;
+                            }
+                        }).catch(function (error) {
+
+                            deferred.reject({
+                                Code: error.status
+                            });
+                        });
+
+                        return deferred.promise;
+                    }
+                };
+            }]).factory('$user', ['$q', 'dataService', function ($q, data) {
+
+                const _identity = {
+                    Name: ''
+                };
+
+                const _onLoginListeners = [];
+                const _onLogoutListeners = [];
+
+                return {
+                    getIdentity: function() {
+
+                        return _identity;
+                    },
+                    isAuthenticated: function() {
+
+                        return _identity.Name != '';
+                    },
+                    hasAccess: function (access) {
+
+                        var list = this.isAuthenticated() ? ['All', 'Authenticated'] : ['All', 'Anonymous'];
+
+                        return list.indexOf(access) > -1;
+                    },
+                    hasRouteAccess: function (route) {
+
+                        return this.hasAccess(route.access);
+                    },
+                    authenticate: function(callback) {
+
+                        var deferred = $q.defer();
+
+                        data.get('/current-user.json').then(function(result) {
+
+                            _identity.Name = result.Name;
+
+                            deferred.resolve();
+                        }, function(error) {
+
+                            deferred.reject(error);
+                        });
+
+                        return deferred.promise;
+                    },
+                    onLogin: function(listener) {
+
+                        _onLoginListeners.push(listener);
+                    },
+                    onLogout: function(listener) {
+
+                        _onLogoutListeners.push(listener);
+                    },
+                    login: function(form) {
+
+                        var deferred = $q.defer();
+
+                        data.get('/login.json').then(function(result) {
+
+                            _identity.Name = result.Name;
+
+                            _onLoginListeners.forEach(function(listener) {
+
+                                listener();
+                            });
+
+                            deferred.resolve();
+                        }, function(error) {
+
+                            deferred.reject(error);
+                        });
+
+                        return deferred.promise;
+                    },
+                    logout: function() {
+
+                        _identity.Name = '';
+                        
+                        _onLogoutListeners.forEach(function(listener) {
+
+                            listener();
+                        });
+                    },
+                    registration: function(form) {
+
+                        var deferred = $q.defer();
+
+                        data.get('/registration.json').then(function(result) {
+
+                            _identity.Name = result.Name;
+
+                            _onLoginListeners.forEach(function(listener) {
+
+                                listener();
+                            });
+
+                            deferred.resolve();
+                        }, function(error) {
+
+                            deferred.reject(error);
+                        });
+
+                        return deferred.promise;
+                    }
+                };
+            }]).directive('igApp', function() {
+              
+                return {
+                    restrict: 'A',
+                    controller: ['$rootScope', '$scope', '$element', '$compile', '$http', '$location', '$route', '$user', function ($rootScope, $scope, $element, $compile, $http, $location, $route, $user) {
+
+                        $user.authenticate().then(function() {
+
+                            $http.get('/ig-app.html').then(function(response) {
+
+                                var template = angular.element(response.data);
+                                
+                                $element.replaceWith(template);
+                                $compile(template)($scope);
+
+                                $rootScope.$on("$routeChangeStart", function(event, next, current) {
+
+                                    if (!$user.hasRouteAccess(next.$$route)) {
+
+                                        event.preventDefault();
+                                        
+                                        $location.path('/');
+                                    }
+                                });
+
+                                $route.reload();
+
+                                $user.onLogin(function() {
+
+                                    $route.reload();
+                                });
+
+                                $user.onLogout(function() {
+
+                                    $route.reload();
+                                });
+                            });
+                        }, function(error) {
+
+                            var template = angular.element('<div>Application error</div>');
+                            
+                            $element.replaceWith(template);
+                            $compile(template)($scope);
+                        });
+                    }],
+                    template: '<div>Loading ...</div>',
+                    replace: true
+                }
+            }).directive('appHeader', [function () {
+
+                return {
+                    restrict: 'A',
+                    scope: {},
+                    controller: ['$user', function ($user) {
+
+                        function _navs() {
+
+                            return [
+                                {
+                                    Name: 'Login',
+                                    Href: '#/login',
+                                    Access: 'Anonymous'
+                                },
+                                {
+                                    Name: 'Registration',
+                                    Href: '#/registration',
+                                    Access: 'Anonymous'
+                                },
+                                {
+                                    Name: 'Request',
+                                    Href: '#/request',
+                                    Access: 'Authenticated'
+                                }
+                            ].filter(function(t) { return $user.hasAccess(t.Access) });
+                        }
+
+                        function _init() {
+
+                            $self.User = $user;
+                            $self.Navs = _navs();
+                        }
+
+                        var $self = this;
+
+                        $self.onLogout = function() {
+                            
+                            $user.logout()
+                        };
+
+                        $self.$onInit = function() {
+
+                            _init();
+
+                            $user.onLogin(_init);
+                            $user.onLogout(_init);
+                        };
+                    }],
+                    controllerAs: 'vm',
+                    template: ''
+                        + '<div>'
+                        + '    <a href="#/">Home</a>'
+                        + '    <ul>'
+                        + '        <li ng-repeat="nav in vm.Navs">'
+                        + '            <a ng-href="{{nav.Href}}">{{nav.Name}}</a></li>'
+                        + '        </li>'
+                        + '        <li ng-if="vm.User.isAuthenticated()"><a ng-click="vm.onLogout()">Logout</a></li>'
+                        + '    </ul>'
+                        + '</div>',
+                    replace: true,
+                    bindToController: true
+                };
+            }]).controller("homeController", ['$user', function($user) {
+
+                var $self = this;
+
+                $self.$onInit = function() {
+
+                    console.log('home init');
+                };
+
+                $self.$onDestroy = function() {
+
+                    console.log('home destroy');
+                };
+            }]).controller("loginController", ['$user', function($user) {
+
+                var $self = this;
+
+                $self.LoginForm = {
+                    Email: '',
+                    Password: '',
+                    Error: ''
+                };
+
+                $self.onSubmit = function(loginForm) {
+
+                    loginForm.Error = '';
+
+                    var form = {
+                        Email: loginForm.Email,
+                        Password: loginForm.Password
+                    };
+
+                    $user.login(form).then(function() {
+
+                    }, function(error) {
+
+                        loginForm.Error = error.Code;
+                    });
+                };
+            }]).controller("registrationController", ['$user', function($user) {
+
+                var $self = this;
+
+                $self.RegistrationForm = {
+                    Name: '',
+                    Email: '',
+                    Password: '',
+                    Error: ''
+                };
+
+                $self.onSubmit = function(registrationForm) {
+
+                    registrationForm.Error = '';
+
+                    var form = {
+                        Name: registrationForm.Name,
+                        Email: registrationForm.Email,
+                        Password: registrationForm.Password
+                    };
+
+                    $user.registration(form).then(function() {
+
+                    }, function(error) {
+
+                        registrationForm.Error = error.Code;
+                    });
+                };
+            }]).controller("requestController", ['$interval', function($interval) {
+
+                var $self = this;
+
+                $self.RequestForm = {
+                    Description: ''
+                };
+
+                var promise = $interval(function() {
+
+                    console.log('!!!!');
+                }, 1000);
+
+                $self.onSubmit = function(requestForm) {
+
+                    var form = {
+                        Description: requestForm.Description
+                    };
+
+                    console.log(JSON.stringify(form));
+                };
+
+                $self.$onInit = function() {
+
+                    console.log('request init');
+                };
+
+                $self.$onDestroy = function() {
+
+                    $interval.cancel(promise);
+
+                    //console.log('request destroy');
+                };
+            }]);
+        </script>
+    </body>
+</html>

@@ -1,0 +1,11 @@
+<div ng-controller="requestController as vm">
+    <div>Request page</div>
+    
+    <form ng-submit="vm.onSubmit(vm.RequestForm)">
+        <div>
+            Description: <textarea cols="100" rows="10" ng-model="vm.RequestForm.Description"></textarea>
+        </div>
+        
+        <input type="submit" value="Submit" />
+    </form>
+</div>
